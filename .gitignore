@@ -1,0 +1,70 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Production
+/frontend/dist
+/backend/dist
+
+# Misc
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database
+*.sqlite
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Storage (audio recordings, transcripts, summaries, skills - potentially large/sensitive)
+/backend/storage/audio/*
+/backend/storage/chunks/*
+/backend/storage/transcripts/*
+/backend/storage/summaries/*
+/backend/storage/wikis/*
+/backend/storage/skills/*
+# Keep the directory structure
+!/backend/storage/audio/.gitkeep
+!/backend/storage/chunks/.gitkeep
+!/backend/storage/transcripts/.gitkeep
+!/backend/storage/summaries/.gitkeep
+!/backend/storage/wikis/.gitkeep
+!/backend/storage/skills/.gitkeep
+!/backend/storage/skills/global/.gitkeep
+
+# Uploads
+/backend/uploads/*
+!/backend/uploads/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/settings.local.json
+
+# Internal Planning
+DATA_LIFECYCLE_PLAN.md
+
+# OS
+Thumbs.db
+nul
