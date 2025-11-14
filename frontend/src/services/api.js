@@ -335,6 +335,163 @@ export const settingsAPI = {
   },
 };
 
+// ServiceNow API
+export const serviceNowAPI = {
+  // Test connection to ServiceNow
+  testConnection: async () => {
+    try {
+      const response = await api.get('/api/servicenow/test');
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  // Get ServiceNow configuration status
+  getStatus: async () => {
+    try {
+      const response = await api.get('/api/servicenow/status');
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  // Get user's resource allocations
+  getResources: async (params = {}) => {
+    try {
+      const response = await api.get('/api/servicenow/resources', { params });
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  // Get resource summary
+  getResourceSummary: async (params = {}) => {
+    try {
+      const response = await api.get('/api/servicenow/resources/summary', { params });
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  // Get user's projects
+  getProjects: async (params = {}) => {
+    try {
+      const response = await api.get('/api/servicenow/projects', { params });
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  // Get user's demands
+  getDemands: async (params = {}) => {
+    try {
+      const response = await api.get('/api/servicenow/demands', { params });
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  // Get all work items (projects + demands)
+  getWorkItems: async (params = {}) => {
+    try {
+      const response = await api.get('/api/servicenow/work-items', { params });
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  // Search for projects and demands
+  search: async (keyword, params = {}) => {
+    try {
+      const response = await api.get('/api/servicenow/search', {
+        params: { q: keyword, ...params },
+      });
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  // Link a meeting to a ServiceNow item
+  linkMeeting: async (meetingId, sysId, type, number, title) => {
+    try {
+      const response = await api.post('/api/servicenow/link-meeting', {
+        meetingId,
+        sysId,
+        type,
+        number,
+        title,
+      });
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  // Get ServiceNow link for a meeting
+  getMeetingLink: async (meetingId) => {
+    try {
+      const response = await api.get(`/api/servicenow/link-meeting/${meetingId}`);
+      return response.data;
+    } catch (error) {
+      // Return null if no link found instead of throwing
+      if (error.response && error.response.status === 404) {
+        return null;
+      }
+      handleError(error);
+    }
+  },
+
+  // Remove ServiceNow link from a meeting
+  unlinkMeeting: async (meetingId) => {
+    try {
+      const response = await api.delete(`/api/servicenow/link-meeting/${meetingId}`);
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  // Get all meetings linked to ServiceNow
+  getLinkedMeetings: async () => {
+    try {
+      const response = await api.get('/api/servicenow/linked-meetings');
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  // Update resource allocation hours
+  updateAllocationHours: async (sysId, hours) => {
+    try {
+      const response = await api.patch(`/api/servicenow/allocations/${sysId}`, {
+        hours,
+      });
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  // Clear cache
+  clearCache: async () => {
+    try {
+      const response = await api.post('/api/servicenow/clear-cache');
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+};
+
 // Health check
 export const healthCheck = async () => {
   try {

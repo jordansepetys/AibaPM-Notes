@@ -26,24 +26,25 @@ import searchRouter from './routes/search.js';
 import chatRouter from './routes/chat.js';
 import skillsRouter from './routes/skills.js';
 import settingsRouter from './routes/settings.js';
+import serviceNowRouter from './routes/servicenow.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Configure multer for file uploads
+// Configure multer for voice chat uploads (temp files)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, path.join(__dirname, '../storage/audio'));
   },
   filename: (req, file, cb) => {
     const timestamp = Date.now();
-    cb(null, `${timestamp}-${file.originalname}`);
+    cb(null, `chat-voice-${timestamp}-${file.originalname}`);
   }
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+  limits: { fileSize: 25 * 1024 * 1024 } // 25MB limit for voice messages
 });
 
 // Middleware
@@ -77,6 +78,7 @@ app.use('/api/search', searchRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/skills', skillsRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/servicenow', serviceNowRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

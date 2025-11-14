@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import useStore from './stores/useStore';
 import { projectsAPI, meetingsAPI, healthCheck } from './services/api';
-import AudioRecorder from './components/Recording/AudioRecorder';
-import RecordingStatus from './components/Recording/RecordingStatus';
+import NotesInput from './components/Notes/NotesInput';
 import MeetingsList from './components/Meetings/MeetingsList';
 import MeetingDetails from './components/Meetings/MeetingDetails';
 import WikiEditor from './components/Wiki/WikiEditor';
@@ -11,6 +10,8 @@ import ProjectManager from './components/Projects/ProjectManager';
 import SkillsManager from './components/Skills/SkillsManager';
 import ChatSidebar from './components/Chat/ChatSidebar';
 import SettingsModal from './components/Settings/SettingsModal';
+import ServiceNowSettings from './components/ServiceNow/Settings';
+import ResourceDashboard from './components/ServiceNow/ResourceDashboard';
 import './App.css';
 
 function App() {
@@ -24,8 +25,9 @@ function App() {
     setActiveTab,
   } = useStore();
 
-  const [appTab, setAppTab] = useState('recording');
+  const [appTab, setAppTab] = useState('meetings');
   const [showSettings, setShowSettings] = useState(false);
+  const [serviceNowTab, setServiceNowTab] = useState('dashboard'); // 'dashboard' or 'settings'
 
   useEffect(() => {
     // Load projects and meetings on mount
@@ -67,7 +69,7 @@ function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '30px', marginBottom: '15px' }}>
             <div style={{ flex: '0 0 auto' }}>
               <h1 className="gradient-text" style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', letterSpacing: '-0.5px' }}>
-                🎙️ Aiba PM
+                📝 Aiba PM Notes
               </h1>
             </div>
             <GlobalSearch
@@ -106,7 +108,7 @@ function App() {
             </button>
           </div>
           <p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: '500' }}>
-            AI-Powered Meeting Transcription & Project Management
+            AI-Powered Meeting Notes & Project Management
           </p>
         </div>
       </header>
@@ -116,8 +118,6 @@ function App() {
 
       {/* Main Content */}
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 20px' }}>
-        <RecordingStatus />
-
         {/* Tab Navigation - Enhanced Design */}
         <div className="glass-card" style={{
           display: 'flex',
@@ -126,35 +126,35 @@ function App() {
           padding: '8px',
         }}>
           <button
-            onClick={() => setAppTab('recording')}
-            className={appTab === 'recording' ? 'btn-gradient' : ''}
+            onClick={() => setAppTab('notes')}
+            className={appTab === 'notes' ? 'btn-gradient' : ''}
             style={{
               flex: 1,
               padding: '14px 20px',
               fontSize: '15px',
               fontWeight: '600',
-              background: appTab === 'recording' ? undefined : 'transparent',
-              color: appTab === 'recording' ? '#fff' : '#6b7280',
+              background: appTab === 'notes' ? undefined : 'transparent',
+              color: appTab === 'notes' ? '#fff' : '#6b7280',
               border: 'none',
               borderRadius: '10px',
               cursor: 'pointer',
               transition: 'all 0.3s ease',
-              boxShadow: appTab === 'recording' ? undefined : 'none',
+              boxShadow: appTab === 'notes' ? undefined : 'none',
             }}
             onMouseEnter={(e) => {
-              if (appTab !== 'recording') {
+              if (appTab !== 'notes') {
                 e.target.style.background = 'rgba(99, 102, 241, 0.1)';
                 e.target.style.color = '#6366f1';
               }
             }}
             onMouseLeave={(e) => {
-              if (appTab !== 'recording') {
+              if (appTab !== 'notes') {
                 e.target.style.background = 'transparent';
                 e.target.style.color = '#6b7280';
               }
             }}
           >
-            🎤 Record
+            ✍️ New Meeting
           </button>
           <button
             onClick={() => setAppTab('meetings')}
@@ -280,130 +280,48 @@ function App() {
           >
             📁 Projects <span className="badge" style={{ marginLeft: '8px', fontSize: '11px' }}>{projects.length}</span>
           </button>
+          <button
+            onClick={() => setAppTab('servicenow')}
+            className={appTab === 'servicenow' ? 'btn-gradient' : ''}
+            style={{
+              flex: 1,
+              padding: '14px 20px',
+              fontSize: '15px',
+              fontWeight: '600',
+              background: appTab === 'servicenow' ? undefined : 'transparent',
+              color: appTab === 'servicenow' ? '#fff' : '#6b7280',
+              border: 'none',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              boxShadow: appTab === 'servicenow' ? undefined : 'none',
+            }}
+            onMouseEnter={(e) => {
+              if (appTab !== 'servicenow') {
+                e.target.style.background = 'rgba(99, 102, 241, 0.1)';
+                e.target.style.color = '#6366f1';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (appTab !== 'servicenow') {
+                e.target.style.background = 'transparent';
+                e.target.style.color = '#6b7280';
+              }
+            }}
+          >
+            🔗 ServiceNow
+          </button>
         </div>
 
-        {/* Recording Tab */}
-        {appTab === 'recording' && (
-          <>
-            <div className="glass-card card-hover" style={{
-              marginBottom: '30px',
-              padding: '0',
-              overflow: 'hidden',
-            }}>
-              <AudioRecorder />
-            </div>
-
-            {/* Stats Section - Glassmorphism Cards */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-              gap: '24px',
-              marginTop: '30px'
-            }}>
-              <div className="glass-card card-hover" style={{
-                padding: '24px',
-                position: 'relative',
-                overflow: 'hidden',
-              }}>
-                <div style={{
-                  position: 'absolute',
-                  top: '-20px',
-                  right: '-20px',
-                  width: '80px',
-                  height: '80px',
-                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-                  borderRadius: '50%',
-                  opacity: '0.1',
-                }} />
-                <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#6b7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Total Projects
-                </h3>
-                <p className="gradient-text" style={{ margin: 0, fontSize: '42px', fontWeight: 'bold' }}>
-                  {projects.length}
-                </p>
-              </div>
-
-              <div className="glass-card card-hover" style={{
-                padding: '24px',
-                position: 'relative',
-                overflow: 'hidden',
-              }}>
-                <div style={{
-                  position: 'absolute',
-                  top: '-20px',
-                  right: '-20px',
-                  width: '80px',
-                  height: '80px',
-                  background: 'linear-gradient(135deg, #14b8a6 0%, #06b6d4 100%)',
-                  borderRadius: '50%',
-                  opacity: '0.1',
-                }} />
-                <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#6b7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Total Meetings
-                </h3>
-                <p style={{ margin: 0, fontSize: '42px', fontWeight: 'bold', background: 'linear-gradient(135deg, #14b8a6 0%, #06b6d4 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                  {meetings.length}
-                </p>
-              </div>
-
-              <div className="glass-card card-hover" style={{
-                padding: '24px',
-                position: 'relative',
-                overflow: 'hidden',
-              }}>
-                <div style={{
-                  position: 'absolute',
-                  top: '-20px',
-                  right: '-20px',
-                  width: '80px',
-                  height: '80px',
-                  background: 'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)',
-                  borderRadius: '50%',
-                  opacity: '0.1',
-                }} />
-                <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#6b7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Recent Meeting
-                </h3>
-                <p style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#1f2937', lineHeight: '1.4' }}>
-                  {meetings.length > 0
-                    ? meetings[0].title
-                    : 'No meetings yet'}
-                </p>
-              </div>
-            </div>
-
-            {/* Quick Start Guide */}
-            {projects.length === 0 && (
-              <div style={{
-                background: '#fff3cd',
-                border: '1px solid #ffc107',
-                borderRadius: '8px',
-                padding: '20px',
-                marginTop: '30px'
-              }}>
-                <h3 style={{ margin: '0 0 15px 0' }}>👋 Getting Started</h3>
-                <ol style={{ margin: 0, paddingLeft: '20px' }}>
-                  <li style={{ marginBottom: '10px' }}>
-                    First, create a project using the backend API:
-                    <pre style={{ background: '#f8f9fa', padding: '10px', borderRadius: '4px', marginTop: '5px' }}>
-                      {`curl -X POST http://localhost:3001/api/projects \\
-  -H "Content-Type: application/json" \\
-  -d '{"name": "My First Project"}'`}
-                    </pre>
-                  </li>
-                  <li style={{ marginBottom: '10px' }}>
-                    Reload this page to see your project
-                  </li>
-                  <li style={{ marginBottom: '10px' }}>
-                    Select your project from the dropdown above
-                  </li>
-                  <li>
-                    Click "Start Recording" to record your first meeting!
-                  </li>
-                </ol>
-              </div>
-            )}
-          </>
+        {/* New Meeting Tab */}
+        {appTab === 'notes' && (
+          <div className="glass-card card-hover" style={{
+            marginBottom: '30px',
+            padding: '0',
+            overflow: 'hidden',
+          }}>
+            <NotesInput />
+          </div>
         )}
 
         {/* Meetings Tab */}
@@ -436,6 +354,48 @@ function App() {
         {/* Projects Tab */}
         {appTab === 'projects' && (
           <ProjectManager />
+        )}
+
+        {/* ServiceNow Tab */}
+        {appTab === 'servicenow' && (
+          <div className="glass-card" style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '2px solid rgba(255, 255, 255, 0.1)', paddingBottom: '10px' }}>
+              <button
+                onClick={() => setServiceNowTab('dashboard')}
+                style={{
+                  padding: '10px 20px',
+                  background: serviceNowTab === 'dashboard' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                  color: serviceNowTab === 'dashboard' ? '#6366f1' : '#6b7280',
+                  border: 'none',
+                  borderBottom: serviceNowTab === 'dashboard' ? '3px solid #6366f1' : '3px solid transparent',
+                  cursor: 'pointer',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  transition: 'all 0.3s',
+                }}
+              >
+                Dashboard
+              </button>
+              <button
+                onClick={() => setServiceNowTab('settings')}
+                style={{
+                  padding: '10px 20px',
+                  background: serviceNowTab === 'settings' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                  color: serviceNowTab === 'settings' ? '#6366f1' : '#6b7280',
+                  border: 'none',
+                  borderBottom: serviceNowTab === 'settings' ? '3px solid #6366f1' : '3px solid transparent',
+                  cursor: 'pointer',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  transition: 'all 0.3s',
+                }}
+              >
+                Settings
+              </button>
+            </div>
+            {serviceNowTab === 'dashboard' && <ResourceDashboard />}
+            {serviceNowTab === 'settings' && <ServiceNowSettings />}
+          </div>
         )}
       </div>
 

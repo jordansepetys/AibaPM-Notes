@@ -1,16 +1,15 @@
-# 🎙️ Aiba PM
+# 📝 Aiba PM Notes
 
-**AI-Powered Meeting Transcription & Project Management**
+**AI-Powered Meeting Notes & Project Management**
 
-Never forget what was discussed in your meetings again. Aiba PM automatically transcribes, analyzes, and organizes your meeting content with AI, then builds a searchable knowledge base for your projects.
+Never forget what was discussed in your meetings again. Aiba PM Notes helps you organize and analyze your typed meeting notes with AI, building a searchable knowledge base for your projects.
 
 ![Chat Screen](./Screenshots/Chat.png)
 
 ## 🌟 Features
 
 ### Core Functionality
-- **🎤 Browser Audio Recording** - Record meetings directly in your browser, no external tools needed
-- **📝 AI Transcription** - Powered by OpenAI Whisper for accurate speech-to-text
+- **✍️ Simple Notes Input** - Type your meeting notes directly in the browser
 - **🤖 Intelligent Analysis** - AI extracts key decisions, action items, discussion topics, and technical details
 - **📊 Structured Summaries** - Every meeting gets a comprehensive, organized summary
 - **🔍 Full-Text Search** - Find anything across all your meetings instantly with relevance ranking
@@ -18,10 +17,11 @@ Never forget what was discussed in your meetings again. Aiba PM automatically tr
 - **💬 AI Chat Mentor** - Context-aware assistant that knows your entire project history
 - **🎯 Skills System** - Custom AI behaviors and instructions that activate automatically based on keywords
 - **💭 Discuss Meeting** - Instantly open AI chat with full meeting context for deeper exploration
+- **🔗 ServiceNow Integration** - View resource allocations, projects, demands, and link meetings to ServiceNow items
 
 ### Smart Features
-- **Background Processing** - Transcription and analysis happen automatically after recording
-- **Real-Time Status** - Auto-polling shows processing progress (transcription → analysis → done)
+- **Background Processing** - AI analysis happens automatically after submitting notes
+- **Real-Time Status** - Auto-polling shows processing progress (analyzing → complete)
 - **Project Organization** - Separate wikis and meeting histories per project
 - **Markdown Support** - Full GitHub-flavored markdown in wiki and chat
 - **Auto-Save** - Wiki changes save automatically 2 seconds after you stop typing
@@ -42,9 +42,9 @@ Never forget what was discussed in your meetings again. Aiba PM automatically tr
 
 Before you begin, you'll need:
 - **Node.js 18+** - [Download here](https://nodejs.org/)
-- **API Key** - Either OpenAI OR Anthropic (Claude)
-  - OpenAI: [Get API key](https://platform.openai.com/api-keys)
-  - Anthropic: [Get API key](https://console.anthropic.com/)
+- **API Key** - Choose one:
+  - **Anthropic (Recommended)** - Claude Sonnet 4.5: [Get API key](https://console.anthropic.com/)
+  - **OpenAI** - GPT-4o: [Get API key](https://platform.openai.com/api-keys)
 
 ### Installation
 
@@ -86,6 +86,12 @@ OPENAI_API_KEY=sk-proj-your-key-here
 ANTHROPIC_API_KEY=sk-ant-your-key-here
 
 PORT=3001
+
+# Optional: ServiceNow Integration (see below for setup)
+# SERVICENOW_INSTANCE_URL=yourcompany.service-now.com
+# SERVICENOW_CLIENT_ID=your_oauth_client_id
+# SERVICENOW_CLIENT_SECRET=your_oauth_client_secret
+# SERVICENOW_USERNAME_FIELD=your.username
 ```
 
 4. **Start the application**
@@ -114,7 +120,7 @@ Navigate to: http://localhost:5173
 ### Project Structure
 
 ```
-AibaPM/
+AibaPM-Notes/
 ├── backend/
 │   ├── src/
 │   │   ├── db/
@@ -123,31 +129,41 @@ AibaPM/
 │   │   │   ├── meetings.js          # Meeting CRUD & processing
 │   │   │   ├── projects.js          # Project management
 │   │   │   ├── wiki.js              # Wiki operations
-│   │   │   └── search.js            # Full-text search
+│   │   │   ├── search.js            # Full-text search
+│   │   │   ├── chat.js              # AI chat
+│   │   │   ├── skills.js            # Skills system
+│   │   │   └── servicenow.js        # ServiceNow integration
 │   │   ├── services/
-│   │   │   ├── transcription.js     # Whisper integration
 │   │   │   ├── aiAnalysis.js        # Claude/GPT-4o analysis
-│   │   │   ├── audioProcessor.js    # Audio file handling
-│   │   │   └── searchIndex.js       # Search indexing
+│   │   │   ├── searchIndex.js       # Search indexing
+│   │   │   ├── skillMatcher.js      # Skills matching
+│   │   │   ├── serviceNowService.js # ServiceNow OAuth & API
+│   │   │   └── serviceNowResourceAPI.js # Resource planning API
 │   │   └── server.js                # Express app
 │   ├── storage/
-│   │   ├── audio/                   # Uploaded recordings
-│   │   ├── transcripts/             # Generated transcripts
+│   │   ├── transcripts/             # Meeting notes (text files)
 │   │   ├── summaries/               # AI summaries (JSON)
 │   │   └── wikis/                   # Project wikis
 │   └── aiba.db                      # SQLite database
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── Recording/
-│   │   │   │   ├── AudioRecorder.jsx
-│   │   │   │   └── RecordingStatus.jsx
+│   │   │   ├── Notes/
+│   │   │   │   └── NotesInput.jsx   # Notes input form
 │   │   │   ├── Meetings/
 │   │   │   │   ├── MeetingsList.jsx
 │   │   │   │   ├── MeetingDetails.jsx
 │   │   │   │   └── MentorFeedback.jsx
 │   │   │   ├── Wiki/
 │   │   │   │   └── WikiEditor.jsx
+│   │   │   ├── Chat/
+│   │   │   │   ├── AIChat.jsx
+│   │   │   │   └── ChatSidebar.jsx
+│   │   │   ├── Skills/
+│   │   │   │   └── SkillsManager.jsx
+│   │   │   ├── ServiceNow/
+│   │   │   │   ├── Settings.jsx
+│   │   │   │   └── ResourceDashboard.jsx
 │   │   │   └── Search/
 │   │   │       └── GlobalSearch.jsx
 │   │   ├── stores/
@@ -156,7 +172,7 @@ AibaPM/
 │   │   │   └── api.js               # API client
 │   │   └── App.jsx                  # Main component
 │   └── package.json
-└── project.md                       # Implementation tracking
+└── README.md
 
 ```
 
@@ -169,23 +185,23 @@ AibaPM/
    - Click "Add Project"
    - Enter a name (e.g., "My Startup", "Q1 Planning")
 
-2. **Record Your First Meeting**
-   - Switch to "Record" tab
+2. **Add Your First Meeting Notes**
+   - Switch to "New Meeting" tab
    - Select your project from the dropdown
    - Enter a meeting title
-   - Click "Start Recording" and allow microphone access
-   - Talk about your meeting topics
-   - Click "Stop Recording" when done
+   - Type your meeting notes in the text area
+   - Include key discussions, decisions, action items, and technical details
+   - Click "Create Meeting & Analyze"
 
-3. **Wait for AI Processing** (~1-2 minutes)
-   - 🎙️ Transcribing audio... (30-60 seconds)
-   - 🤖 Generating AI summary... (30-60 seconds)
+3. **Wait for AI Processing** (~30-60 seconds)
+   - 🤖 Analyzing notes...
+   - 📊 Generating summary...
    - Processing happens in the background
 
 4. **View Your Meeting**
    - Go to "Meetings" tab
    - Click on your meeting
-   - See tabs: Summary | Transcript | Actions
+   - See tabs: Summary | Notes | Actions
 
 ### Using the AI Chat Mentor
 
@@ -214,6 +230,35 @@ The AI has access to your project's wiki and last 5 meetings!
 **Pro tip:** After a meeting, go to the meeting summary and click "Get Wiki Suggestions" - AI will suggest specific updates based on what was discussed!
 
 ![Wiki Updates](./Screenshots/WikiUpdate.png)
+
+### ServiceNow Integration (Optional)
+
+Connect to ServiceNow to view your resource planning data and link meetings to projects/demands.
+
+**Features:**
+- 📊 **Resource Dashboard** - View all your resource allocations and commitments
+- 📁 **Projects & Demands** - See all assigned ServiceNow work items
+- 🔗 **Meeting Linking** - Associate meetings with ServiceNow projects/demands
+- ✏️ **Update Hours** - Modify resource allocations directly from the app
+- 🎯 **AI Context** (Coming Soon) - AI mentor with awareness of your ServiceNow commitments
+
+**Setup:**
+
+1. Get ServiceNow OAuth credentials from your ServiceNow admin:
+   - Request OAuth Client ID and Secret
+   - Need roles: `rest_api_explorer`, `resource_user`, `resource_manager`, `itbm_user`
+
+2. Add to `backend/.env`:
+```env
+SERVICENOW_INSTANCE_URL=yourcompany.service-now.com
+SERVICENOW_CLIENT_ID=your_oauth_client_id
+SERVICENOW_CLIENT_SECRET=your_oauth_client_secret
+SERVICENOW_USERNAME_FIELD=your.username
+```
+
+3. Restart backend and go to ServiceNow tab → Settings → Test Connection
+
+**Note:** ServiceNow integration is completely optional. The app works fine without it!
 
 ### Using the Skills System
 
@@ -416,6 +461,8 @@ This is a personal project, but contributions are welcome!
 ## 🗺️ Roadmap
 
 ### Near Term
+- [x] ServiceNow integration for resource planning
+- [ ] AI mentor with ServiceNow context awareness
 - [ ] Docker setup for easy deployment
 - [ ] User authentication (optional, for multi-user deployments)
 - [ ] Export meetings to PDF/Word

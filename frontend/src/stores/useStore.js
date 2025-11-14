@@ -9,14 +9,8 @@ const useStore = create((set, get) => ({
   meetings: [],
   selectedMeeting: null,
 
-  // Recording
-  isRecording: false,
-  recordingDuration: 0,
-  mediaRecorder: null,
-  audioChunks: [],
-
   // UI
-  activeTab: 'recording',
+  activeTab: 'meetings',
   searchQuery: '',
   isChatSidebarOpen: false,
 
@@ -69,34 +63,6 @@ const useStore = create((set, get) => ({
     console.log('🏪 Store: selectMeeting called with:', meeting?.id, meeting?.title);
     set({ selectedMeeting: meeting });
   },
-
-  // Actions - Recording
-  startRecording: (mediaRecorder) => set({
-    isRecording: true,
-    recordingDuration: 0,
-    mediaRecorder,
-    audioChunks: [],
-    status: 'idle',
-    errorMessage: null
-  }),
-
-  stopRecording: () => set((state) => {
-    if (state.mediaRecorder) {
-      state.mediaRecorder.stop();
-    }
-    return {
-      isRecording: false,
-      mediaRecorder: null
-    };
-  }),
-
-  setRecordingDuration: (duration) => set({ recordingDuration: duration }),
-
-  addAudioChunk: (chunk) => set((state) => ({
-    audioChunks: [...state.audioChunks, chunk]
-  })),
-
-  clearAudioChunks: () => set({ audioChunks: [] }),
 
   // Actions - UI
   setActiveTab: (tab) => set({ activeTab: tab }),

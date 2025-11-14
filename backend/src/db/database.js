@@ -126,6 +126,31 @@ function initializeDatabase() {
     )
   `);
 
+  // ServiceNow mappings table - links meetings to ServiceNow items
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS servicenow_mappings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      meeting_id INTEGER NOT NULL,
+      servicenow_sys_id TEXT NOT NULL,
+      servicenow_type TEXT NOT NULL,
+      servicenow_number TEXT,
+      servicenow_title TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+    )
+  `);
+
+  // ServiceNow cache table - caches resource data
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS servicenow_cache (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cache_key TEXT NOT NULL UNIQUE,
+      cache_data TEXT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   console.log('Database initialized successfully');
 }
 
@@ -310,6 +335,47 @@ export const upsertSetting = db.prepare(`
 
 export const deleteSetting = db.prepare(`
   DELETE FROM settings WHERE key = ?
+`);
+
+// ServiceNow Mappings
+export const createServiceNowMapping = db.prepare(`
+  INSERT INTO servicenow_mappings (meeting_id, servicenow_sys_id, servicenow_type, servicenow_number, servicenow_title)
+  VALUES (?, ?, ?, ?, ?)
+`);
+
+export const getServiceNowMappingByMeeting = db.prepare(`
+  SELECT * FROM servicenow_mappings WHERE meeting_id = ?
+`);
+
+export const deleteServiceNowMapping = db.prepare(`
+  DELETE FROM servicenow_mappings WHERE meeting_id = ?
+`);
+
+export const getAllServiceNowMappings = db.prepare(`
+  SELECT m.*, snm.servicenow_sys_id, snm.servicenow_type, snm.servicenow_number, snm.servicenow_title
+  FROM meetings m
+  LEFT JOIN servicenow_mappings snm ON m.id = snm.meeting_id
+  WHERE snm.id IS NOT NULL
+  ORDER BY m.date DESC
+`);
+
+// ServiceNow Cache
+export const getCache = db.prepare(`
+  SELECT * FROM servicenow_cache WHERE cache_key = ? AND expires_at > datetime('now')
+`);
+
+export const setCache = db.prepare(`
+  INSERT INTO servicenow_cache (cache_key, cache_data, expires_at)
+  VALUES (?, ?, datetime('now', '+' || ? || ' minutes'))
+  ON CONFLICT(cache_key) DO UPDATE SET cache_data = excluded.cache_data, expires_at = excluded.expires_at
+`);
+
+export const deleteCache = db.prepare(`
+  DELETE FROM servicenow_cache WHERE cache_key = ?
+`);
+
+export const clearExpiredCache = db.prepare(`
+  DELETE FROM servicenow_cache WHERE expires_at <= datetime('now')
 `);
 
 // Run migrations for existing databases
