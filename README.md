@@ -4,8 +4,6 @@
 
 Never forget what was discussed in your meetings again. Aiba PM Notes helps you organize and analyze your typed meeting notes with AI, building a searchable knowledge base for your projects.
 
-![Chat Screen](./Screenshots/Chat.png)
-
 ## 🌟 Features
 
 ### Core Functionality
@@ -33,8 +31,6 @@ Never forget what was discussed in your meetings again. Aiba PM Notes helps you 
 - **📱 Responsive Layout** - Works on desktop and tablet
 - **🎯 Custom Scrollbars** - Purple gradient scrollbars that match the theme
 - **🌓 Clean Interface** - No clutter, everything has a purpose
-
-![MeetingScreen](./Screenshots/MeetingScreen.png)
 
 ## 🚀 Quick Start
 
@@ -217,8 +213,6 @@ The AI mentor knows your entire project context:
 
 The AI has access to your project's wiki and last 5 meetings!
 
-![Chat](./Screenshots/Chat.png)
-
 ### Managing Your Wiki
 
 1. Go to "Wiki" tab
@@ -228,8 +222,6 @@ The AI has access to your project's wiki and last 5 meetings!
 5. Auto-saves 2 seconds after you stop typing
 
 **Pro tip:** After a meeting, go to the meeting summary and click "Get Wiki Suggestions" - AI will suggest specific updates based on what was discussed!
-
-![Wiki Updates](./Screenshots/WikiUpdate.png)
 
 ### ServiceNow Integration (Optional)
 
@@ -322,21 +314,17 @@ The AI remembers the entire meeting context, so you can have a natural conversat
 Edit `backend/.env`:
 
 ```env
-# Use OpenAI (GPT-4o + Whisper)
+# Use OpenAI (GPT-4o)
 AI_BACKEND=openai
 OPENAI_API_KEY=sk-proj-...
 
-# OR use Anthropic (Claude Sonnet 4.5 + OpenAI Whisper)
+# OR use Anthropic (Claude Sonnet 4.5)
 AI_BACKEND=anthropic
 ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-proj-...  # Still needed for Whisper transcription
 ```
-
-**Note:** Whisper transcription always uses OpenAI, regardless of AI_BACKEND setting.
 
 ### AI Model Details
 
-- **Transcription:** OpenAI Whisper (latest)
 - **Analysis (OpenAI):** GPT-4o
 - **Analysis (Anthropic):** Claude Sonnet 4.5 (2025-05-14)
 - **Chat (OpenAI):** GPT-4o
@@ -347,7 +335,6 @@ OPENAI_API_KEY=sk-proj-...  # Still needed for Whisper transcription
 All costs are pay-as-you-go to OpenAI/Anthropic (you pay them directly):
 
 ### OpenAI Pricing
-- **Whisper transcription:** $0.006 per minute
 - **GPT-4o analysis:** ~$0.01-0.05 per meeting
 - **GPT-4o chat:** ~$0.001-0.01 per message
 
@@ -356,12 +343,11 @@ All costs are pay-as-you-go to OpenAI/Anthropic (you pay them directly):
 - **Claude Sonnet chat:** ~$0.002-0.01 per message
 
 ### Real-World Examples
-- **30-minute meeting:** ~$0.20 (transcription + analysis)
-- **1-hour meeting:** ~$0.40 (transcription + analysis)
+- **Per meeting analysis:** ~$0.01-0.10
 - **10 chat messages:** ~$0.05-0.10
-- **Monthly (5 hours/week):** ~$8-12
+- **Monthly (20 meetings + chat):** ~$3-5
 
-**This is extremely cheap compared to manual note-taking or hiring someone to document meetings!**
+**This is extremely cheap compared to manual note-taking or paying for meeting analysis tools!**
 
 ## 🛠️ Tech Stack
 
@@ -375,21 +361,21 @@ All costs are pay-as-you-go to OpenAI/Anthropic (you pay them directly):
 ### Backend
 - **Node.js + Express** - REST API server
 - **SQLite + better-sqlite3** - Zero-config database
-- **Multer** - File uploads (audio files up to 100MB)
-- **OpenAI SDK** - Whisper + GPT-4o
+- **OpenAI SDK** - GPT-4o
 - **Anthropic SDK** - Claude Sonnet 4.5
+- **Axios** - ServiceNow API integration
 - **Node-cron** - Scheduled cleanup tasks
 
 ### Storage
-- **SQLite database** - Meetings, projects, metadata, chat history
-- **File system** - Audio files, transcripts, summaries, wikis
+- **SQLite database** - Meetings, projects, metadata, chat history, ServiceNow cache
+- **File system** - Meeting notes, AI summaries, project wikis
 - Location: `backend/storage/`
 
 ### Architecture
 - **Monorepo** - Frontend + backend in one repo
-- **Background processing** - Async transcription + analysis pipeline
+- **Background processing** - Async AI analysis pipeline
 - **Auto-polling** - Frontend polls for processing completion
-- **7-step pipeline:** Audio → Transcription → AI Analysis → Database → Metadata → Search Index → Wiki Suggestions
+- **Pipeline:** Notes → AI Analysis → Database → Metadata → Search Index → Wiki Suggestions
 
 ## 🚢 Deployment Options
 
@@ -486,15 +472,10 @@ This is a personal project, but contributions are welcome!
 - Make sure you've set `AI_BACKEND` correctly
 - Restart the backend server after changing `.env`
 
-### Recording doesn't work
-- Make sure your browser has microphone permissions
-- Try Chrome/Edge (best support for MediaRecorder API)
-- Check browser console for errors
-
-### Processing stuck on "Transcribing..."
+### Processing stuck on "Analyzing..."
 - Check backend terminal for errors
-- Verify your OpenAI API key is valid and has credits
-- Large audio files (>1 hour) may take 5-10 minutes
+- Verify your API key (OpenAI or Anthropic) is valid and has credits
+- Large notes may take 30-60 seconds to process
 
 ### Database errors
 - Delete `backend/aiba.db` to start fresh (WARNING: deletes all data)
@@ -517,9 +498,9 @@ Every coffee helps me spend more time building features instead of working my da
 ## 🙏 Acknowledgments
 
 Built with:
-- OpenAI Whisper for transcription
-- OpenAI GPT-4o and Anthropic Claude for analysis
+- OpenAI GPT-4o and Anthropic Claude Sonnet 4.5 for AI analysis
 - React and Node.js ecosystems
+- ServiceNow REST APIs
 - Lots of coffee ☕
 
 ## 📧 Contact
