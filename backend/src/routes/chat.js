@@ -1,41 +1,22 @@
+/**
+ * Chat Routes - Azure OpenAI Version
+ *
+ * This version uses Azure OpenAI for chat functionality.
+ * Voice transcription is disabled in this version (no Whisper access).
+ */
+
 import express from 'express';
 import * as db from '../db/database.js';
-import Anthropic from '@anthropic-ai/sdk';
-import OpenAI from 'openai';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { transcribeAudio } from '../services/transcription.js';
+import { createChatCompletion, isAzureConfigured, getAzureConfig } from '../services/azureOpenAI.js';
 import { findRelevantSkills, buildSkillsContext } from '../services/skillMatcher.js';
-import { getAIBackendForFeature } from '../services/settingsService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const router = express.Router();
-const AI_BACKEND = process.env.AI_BACKEND || 'openai';
-
-// Initialize AI clients (lazy initialization)
-let anthropic = null;
-let openai = null;
-
-function getAnthropicClient() {
-  if (!anthropic && process.env.ANTHROPIC_API_KEY) {
-    anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-  }
-  return anthropic;
-}
-
-function getOpenAIClient() {
-  if (!openai && process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-  }
-  return openai;
-}
 
 // System prompt for the AI mentor
 const SYSTEM_PROMPT = `You're talking to someone who needs genuine help thinking through their work and projects. Have a real conversation with them - like you're their smart friend who gets it.
@@ -143,50 +124,31 @@ async function buildProjectContext(projectId) {
 }
 
 /**
- * Get AI response using Claude or GPT
+ * Get AI response using Azure OpenAI
  */
-async function getAIResponse(messages, systemPrompt, backend = null) {
+async function getAIResponse(messages, systemPrompt) {
+  if (!isAzureConfigured()) {
+    throw new Error(
+      'Azure OpenAI is not configured. Please set AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, and AZURE_OPENAI_DEPLOYMENT in your .env file'
+    );
+  }
+
   try {
-    // Get backend from settings if not specified
-    if (!backend) {
-      backend = getAIBackendForFeature('chat');
-    }
+    const config = getAzureConfig();
+    console.log(`Using Azure OpenAI (deployment: ${config.deployment})`);
 
-    if (backend === 'anthropic') {
-      const client = getAnthropicClient();
-      if (!client) {
-        throw new Error('Anthropic API key not configured');
-      }
+    // Build messages array with system prompt
+    const chatMessages = [
+      { role: 'system', content: systemPrompt },
+      ...messages,
+    ];
 
-      const response = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
-        temperature: 1.0, // More creative and natural (default is 1.0, but explicit is better)
-        system: systemPrompt,
-        messages: messages,
-      });
+    const response = await createChatCompletion(chatMessages, {
+      max_tokens: 4096,
+      temperature: 1.0, // More creative and natural
+    });
 
-      return response.content[0].text;
-    } else {
-      const client = getOpenAIClient();
-      if (!client) {
-        throw new Error('OpenAI API key not configured');
-      }
-
-      const chatMessages = [
-        { role: 'system', content: systemPrompt },
-        ...messages,
-      ];
-
-      const completion = await client.chat.completions.create({
-        model: 'gpt-4o',
-        messages: chatMessages,
-        max_tokens: 4096,
-        temperature: 1.0, // More creative and natural
-      });
-
-      return completion.choices[0].message.content;
-    }
+    return response.choices[0]?.message?.content;
   } catch (error) {
     console.error('AI response error:', error);
     throw new Error(`Failed to get AI response: ${error.message}`);
@@ -247,17 +209,17 @@ router.post('/', async (req, res, next) => {
 
     // Log skills status
     if (disableSkills) {
-      console.log('⏸️  Skills manually disabled for this message');
+      console.log('Skills manually disabled for this message');
     } else if (relevantSkills.length > 0) {
-      console.log(`🎯 Applied ${relevantSkills.length} skill(s):`,
+      console.log(`Applied ${relevantSkills.length} skill(s):`,
         relevantSkills.map(s => `${s.name} (${s.scope}, score=${s.score})`).join(', ')
       );
     } else {
-      console.log('ℹ️  No matching skills found');
+      console.log('No matching skills found');
     }
 
     // Get AI response
-    console.log(`💬 Chat request ${projectId ? `for project ${projectId}` : '(general)'}`);
+    console.log(`Chat request ${projectId ? `for project ${projectId}` : '(general)'}`);
     const aiResponse = await getAIResponse(aiMessages, fullSystemPrompt);
 
     // Save user message to database
@@ -287,7 +249,7 @@ router.post('/', async (req, res, next) => {
       }
     }
 
-    console.log(`✅ Chat response generated`);
+    console.log(`Chat response generated`);
 
     res.json({
       success: true,
@@ -349,7 +311,7 @@ router.delete('/', async (req, res, next) => {
       projectId || null
     );
 
-    console.log(`🗑️ Chat history cleared ${projectId ? `for project ${projectId}` : '(all)'}`);
+    console.log(`Chat history cleared ${projectId ? `for project ${projectId}` : '(all)'}`);
 
     res.json({
       success: true,
@@ -362,50 +324,16 @@ router.delete('/', async (req, res, next) => {
 
 /**
  * POST /api/chat/transcribe
- * Transcribe voice input for chat
+ * Voice transcription endpoint - DISABLED in work version
+ *
+ * This endpoint requires OpenAI Whisper which is not available through Azure OpenAI.
+ * To enable voice input, configure Azure Speech Services separately.
  */
 router.post('/transcribe', async (req, res, next) => {
-  try {
-    const upload = req.app.get('upload');
-
-    // Use multer middleware for this specific route
-    upload.single('audio')(req, res, async (err) => {
-      if (err) {
-        return res.status(400).json({ error: 'File upload failed: ' + err.message });
-      }
-
-      if (!req.file) {
-        return res.status(400).json({ error: 'No audio file provided' });
-      }
-
-      console.log('🎤 Transcribing voice input for chat...');
-
-      try {
-        // Transcribe the audio file
-        const result = await transcribeAudio(req.file.path);
-
-        console.log(`✅ Voice transcribed: ${result.text.length} characters`);
-
-        // Clean up the temporary audio file
-        await fs.unlink(req.file.path).catch(err =>
-          console.warn('Failed to cleanup temp audio:', err.message)
-        );
-
-        res.json({
-          success: true,
-          text: result.text,
-          language: result.language,
-          duration: result.duration,
-        });
-      } catch (transcribeError) {
-        // Clean up the file even if transcription fails
-        await fs.unlink(req.file.path).catch(() => {});
-        throw transcribeError;
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
+  res.status(501).json({
+    error: 'Voice transcription is not available in this version',
+    message: 'This feature requires Azure Speech Services which is not configured. Please type your message instead.',
+  });
 });
 
 export default router;

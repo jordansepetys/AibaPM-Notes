@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import useStore from './stores/useStore';
 import { projectsAPI, meetingsAPI, healthCheck } from './services/api';
-import AudioRecorder from './components/Recording/AudioRecorder';
+import TranscriptUploader from './components/Meetings/TranscriptUploader';
 import RecordingStatus from './components/Recording/RecordingStatus';
 import MeetingsList from './components/Meetings/MeetingsList';
 import MeetingDetails from './components/Meetings/MeetingDetails';
@@ -16,7 +16,7 @@ import Skeleton, { SkeletonCard } from './components/UI/Skeleton';
 import './App.css';
 
 const TABS = [
-  { id: 'recording', icon: '🎤', label: 'Record' },
+  { id: 'transcript', icon: '📝', label: 'Add Meeting' },
   { id: 'meetings', icon: '📋', label: 'Meetings', countKey: 'meetings' },
   { id: 'wiki', icon: '📚', label: 'Wiki' },
   { id: 'skills', icon: '🎯', label: 'Skills' },
@@ -32,7 +32,7 @@ function App() {
     setStatus,
   } = useStore();
 
-  const [appTab, setAppTab] = useState('recording');
+  const [appTab, setAppTab] = useState('transcript');
   const [showSettings, setShowSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const tabRefs = useRef([]);
@@ -135,11 +135,11 @@ function App() {
           ))}
         </div>
 
-        {/* Recording Tab */}
-        {appTab === 'recording' && (
+        {/* Transcript Upload Tab */}
+        {appTab === 'transcript' && (
           <>
             <div className="glass-card card-hover" style={{ marginBottom: '30px', padding: 0, overflow: 'hidden' }}>
-              <AudioRecorder />
+              <TranscriptUploader />
             </div>
 
             {/* Stats Section */}
@@ -180,7 +180,7 @@ function App() {
                 <h3 className="getting-started__title">Welcome to Aiba PM!</h3>
                 <p className="getting-started__text">
                   Get started by creating your first project.<br />
-                  Then you can record meetings and let AI do the heavy lifting.
+                  Then you can add meeting transcripts and let AI do the heavy lifting.
                 </p>
                 <button
                   onClick={() => setAppTab('projects')}

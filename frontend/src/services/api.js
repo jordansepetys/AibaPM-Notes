@@ -140,6 +140,15 @@ export const meetingsAPI = {
       handleError(error);
     }
   },
+
+  submitTranscript: async (data) => {
+    try {
+      const response = await api.post('/api/meetings/transcript', data);
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
 };
 
 // Wiki API

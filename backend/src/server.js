@@ -9,8 +9,11 @@ const __dirname = path.dirname(__filename);
 const envPath = path.join(__dirname, '../.env');
 console.log('Loading .env from:', envPath);
 dotenv.config({ path: envPath });
-console.log('OPENAI_API_KEY loaded:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
-console.log('ANTHROPIC_API_KEY loaded:', process.env.ANTHROPIC_API_KEY ? 'Yes' : 'No');
+
+// Azure OpenAI configuration check
+console.log('AZURE_OPENAI_ENDPOINT loaded:', process.env.AZURE_OPENAI_ENDPOINT ? 'Yes' : 'No');
+console.log('AZURE_OPENAI_API_KEY loaded:', process.env.AZURE_OPENAI_API_KEY ? 'Yes' : 'No');
+console.log('AZURE_OPENAI_DEPLOYMENT:', process.env.AZURE_OPENAI_DEPLOYMENT || 'Not set');
 
 import express from 'express';
 import cors from 'cors';
@@ -135,13 +138,19 @@ if (process.env.NODE_ENV === 'production') {
 
 // Health check
 app.get('/api/health', (req, res) => {
-  const aiBackend = process.env.AI_BACKEND || 'openai';
-  const modelName = aiBackend === 'anthropic' ? 'Claude Sonnet 4.5' : 'GPT-4o';
+  const azureConfigured = !!(
+    process.env.AZURE_OPENAI_ENDPOINT &&
+    process.env.AZURE_OPENAI_API_KEY &&
+    process.env.AZURE_OPENAI_DEPLOYMENT
+  );
+
   res.json({
     status: 'ok',
     message: 'Server is running',
-    aiBackend: aiBackend,
-    modelName: modelName,
+    aiBackend: 'azure-openai',
+    aiConfigured: azureConfigured,
+    deployment: process.env.AZURE_OPENAI_DEPLOYMENT || 'not configured',
+    modelName: process.env.AZURE_OPENAI_DEPLOYMENT || 'Azure OpenAI',
   });
 });
 

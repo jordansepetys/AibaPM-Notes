@@ -1,19 +1,22 @@
-import Anthropic from '@anthropic-ai/sdk';
-import OpenAI from 'openai';
+/**
+ * AI Analysis Service - Azure OpenAI Version
+ *
+ * This version uses Azure OpenAI instead of direct OpenAI/Anthropic APIs.
+ * Configure via environment variables:
+ * - AZURE_OPENAI_ENDPOINT
+ * - AZURE_OPENAI_API_KEY
+ * - AZURE_OPENAI_DEPLOYMENT
+ */
+
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getAIBackendForFeature } from './settingsService.js';
+import { createChatCompletion, isAzureConfigured, getAzureConfig } from './azureOpenAI.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const SUMMARY_DIR = path.join(__dirname, '../../storage/summaries');
-const AI_BACKEND = process.env.AI_BACKEND || 'openai';
-
-// Initialize AI clients (lazy initialization)
-let anthropic = null;
-let openai = null;
 
 /**
  * Strip markdown code blocks from AI response
@@ -31,70 +34,28 @@ function stripMarkdownCodeBlocks(text) {
   return cleaned.trim();
 }
 
-function getAnthropicClient() {
-  if (!anthropic && process.env.ANTHROPIC_API_KEY) {
-    anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-  }
-  return anthropic;
-}
-
-function getOpenAIClient() {
-  if (!openai && process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-  }
-  return openai;
-}
-
-// Prompt template for meeting analysis
 /**
- * Check for API quota/billing errors (OpenAI and Anthropic)
+ * Check for API errors and provide helpful messages
  * @param {Error} error - Error object from API call
- * @param {string} provider - 'openai' or 'anthropic'
  * @returns {string|null} User-friendly error message or null
  */
-function checkAPIQuotaError(error, provider = 'openai') {
-  if (provider === 'openai') {
-    // OpenAI error codes
-    if (error.status === 429) {
-      return 'OpenAI API rate limit exceeded. Please wait and try "Reprocess Meeting"';
-    }
-    if (error.status === 401) {
-      return 'OpenAI API key is invalid or expired. Check your .env file';
-    }
-    if (error.status === 402 || error.code === 'insufficient_quota') {
-      return 'OpenAI account has insufficient credits. Add credits at platform.openai.com/account/billing';
-    }
-    if (error.message && error.message.includes('quota')) {
-      return 'OpenAI API quota exceeded. Check usage at platform.openai.com/account/usage';
-    }
-  } else if (provider === 'anthropic') {
-    // Anthropic error codes
-    if (error.status === 429) {
-      return 'Anthropic API rate limit exceeded. Please wait and try "Reprocess Meeting"';
-    }
-    if (error.status === 401) {
-      return 'Anthropic API key is invalid or expired. Check your .env file';
-    }
-    if (error.status === 402 || error.message?.includes('credit')) {
-      return 'Anthropic account has insufficient credits. Check console.anthropic.com/account/billing';
-    }
-    if (error.message && error.message.includes('quota')) {
-      return 'Anthropic API quota exceeded. Check console.anthropic.com/account/usage';
-    }
+function checkAPIError(error) {
+  if (error.status === 429) {
+    return 'Azure OpenAI rate limit exceeded. Please wait and try "Reprocess Meeting"';
   }
-
-  // Generic billing/quota check
-  if (error.message && (error.message.includes('billing') || error.message.includes('payment'))) {
-    return `${provider === 'openai' ? 'OpenAI' : 'Anthropic'} billing issue detected. Please check your account`;
+  if (error.status === 401) {
+    return 'Azure OpenAI API key is invalid or expired. Check your .env file';
   }
-
+  if (error.status === 404) {
+    return 'Azure OpenAI deployment not found. Check your AZURE_OPENAI_DEPLOYMENT setting';
+  }
+  if (error.message && error.message.includes('quota')) {
+    return 'Azure OpenAI quota exceeded. Check your Azure portal for usage';
+  }
   return null;
 }
 
+// Prompt template for meeting analysis
 const ANALYSIS_PROMPT = `You are an AI assistant that captures detailed meeting discussions for long-term memory and reference.
 
 Your goal is to preserve what was discussed in detail, not just extract action items. This is a conversation journal that should capture nuances, options discussed, and trade-offs considered.
@@ -123,193 +84,73 @@ Transcript:
 Provide ONLY the JSON response, no additional text.`;
 
 /**
- * Analyze meeting transcript using AI with automatic fallback
+ * Analyze meeting transcript using Azure OpenAI
  * @param {string} transcript - Meeting transcript text
- * @param {string} backend - AI backend to use ('openai' or 'anthropic') - defaults to user setting
- * @returns {Promise<Object>} Structured analysis with metadata about which model was used
+ * @returns {Promise<Object>} Structured analysis with metadata
  */
-export const analyzeMeeting = async (transcript, backend = null) => {
+export const analyzeMeeting = async (transcript) => {
   if (!transcript || transcript.trim().length === 0) {
     throw new Error('Transcript is empty');
   }
 
-  // Get backend from settings if not specified
-  if (!backend) {
-    backend = getAIBackendForFeature('meeting_analysis');
+  if (!isAzureConfigured()) {
+    throw new Error(
+      'Azure OpenAI is not configured. Please set AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, and AZURE_OPENAI_DEPLOYMENT in your .env file'
+    );
   }
 
-  let analysis;
-  let usedBackend = backend;
-  let usedModel = '';
-  let fallbackOccurred = false;
-
-  // Try primary backend first
-  if (backend === 'anthropic') {
-    console.log(`Analyzing meeting with Anthropic (Claude Sonnet 4.5)...`);
-    try {
-      analysis = await analyzeWithClaude(transcript);
-      usedModel = 'Claude Sonnet 4.5';
-    } catch (error) {
-      const quotaError = checkAPIQuotaError(error, 'anthropic');
-
-      // If it's a quota/auth error and OpenAI is available, fall back
-      if (quotaError && process.env.OPENAI_API_KEY) {
-        console.warn(`⚠️  Anthropic API failed: ${quotaError}`);
-        console.log(`🔄 Falling back to OpenAI (GPT-4o)...`);
-
-        try {
-          analysis = await analyzeWithGPT(transcript);
-          usedBackend = 'openai';
-          usedModel = 'GPT-4o';
-          fallbackOccurred = true;
-        } catch (fallbackError) {
-          console.error('❌ Fallback to OpenAI also failed:', fallbackError);
-          throw new Error(`Both APIs failed. Anthropic: ${quotaError}. OpenAI: ${fallbackError.message}`);
-        }
-      } else {
-        // No fallback available or non-quota error
-        throw error;
-      }
-    }
-  } else {
-    // Primary is OpenAI
-    console.log(`Analyzing meeting with OpenAI (GPT-4o)...`);
-    try {
-      analysis = await analyzeWithGPT(transcript);
-      usedModel = 'GPT-4o';
-    } catch (error) {
-      const quotaError = checkAPIQuotaError(error, 'openai');
-
-      // If it's a quota/auth error and Anthropic is available, fall back
-      if (quotaError && process.env.ANTHROPIC_API_KEY) {
-        console.warn(`⚠️  OpenAI API failed: ${quotaError}`);
-        console.log(`🔄 Falling back to Anthropic (Claude Sonnet 4.5)...`);
-
-        try {
-          analysis = await analyzeWithClaude(transcript);
-          usedBackend = 'anthropic';
-          usedModel = 'Claude Sonnet 4.5';
-          fallbackOccurred = true;
-        } catch (fallbackError) {
-          console.error('❌ Fallback to Anthropic also failed:', fallbackError);
-          throw new Error(`Both APIs failed. OpenAI: ${quotaError}. Anthropic: ${fallbackError.message}`);
-        }
-      } else {
-        // No fallback available or non-quota error
-        throw error;
-      }
-    }
-  }
+  const config = getAzureConfig();
+  console.log(`Analyzing meeting with Azure OpenAI (deployment: ${config.deployment})...`);
 
   try {
-    // Validate and parse the analysis
-    const parsed = typeof analysis === 'string' ? JSON.parse(analysis) : analysis;
+    const prompt = ANALYSIS_PROMPT.replace('{transcript}', transcript);
+
+    const response = await createChatCompletion([
+      {
+        role: 'system',
+        content: 'You are a meeting documentation assistant that captures detailed discussions for long-term reference. Return structured JSON responses with thorough detail.',
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ], {
+      max_tokens: 4096,
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+    });
+
+    const content = response.choices[0]?.message?.content;
+    console.log('Azure OpenAI analysis completed');
+
+    // Parse and validate the response
+    const analysis = typeof content === 'string' ? JSON.parse(stripMarkdownCodeBlocks(content)) : content;
 
     // Ensure all required fields exist and add metadata
     return {
-      overview: parsed.overview || 'No overview available',
-      discussion_topics: Array.isArray(parsed.discussion_topics) ? parsed.discussion_topics : [],
-      detailed_discussion: Array.isArray(parsed.detailed_discussion) ? parsed.detailed_discussion : [],
-      key_decisions: Array.isArray(parsed.key_decisions) ? parsed.key_decisions : [],
-      action_items: Array.isArray(parsed.action_items) ? parsed.action_items : [],
-      technical_details: Array.isArray(parsed.technical_details) ? parsed.technical_details : [],
-      context: parsed.context || '',
+      overview: analysis.overview || 'No overview available',
+      discussion_topics: Array.isArray(analysis.discussion_topics) ? analysis.discussion_topics : [],
+      detailed_discussion: Array.isArray(analysis.detailed_discussion) ? analysis.detailed_discussion : [],
+      key_decisions: Array.isArray(analysis.key_decisions) ? analysis.key_decisions : [],
+      action_items: Array.isArray(analysis.action_items) ? analysis.action_items : [],
+      technical_details: Array.isArray(analysis.technical_details) ? analysis.technical_details : [],
+      context: analysis.context || '',
       // Metadata about which model was used
       _metadata: {
-        usedBackend,
-        usedModel,
-        fallbackOccurred,
+        usedBackend: 'azure-openai',
+        usedModel: config.deployment,
         analyzedAt: new Date().toISOString(),
       },
     };
   } catch (error) {
-    console.error('Analysis parsing error:', error);
-    throw new Error(`Failed to parse analysis: ${error.message}`);
-  }
-};
+    console.error('Azure OpenAI analysis error:', error);
 
-/**
- * Analyze using Claude (Anthropic)
- * @param {string} transcript - Meeting transcript
- * @returns {Promise<string>} JSON analysis
- */
-const analyzeWithClaude = async (transcript) => {
-  const client = getAnthropicClient();
-  if (!client) {
-    throw new Error('Anthropic API key not configured');
-  }
-
-  try {
-    const prompt = ANALYSIS_PROMPT.replace('{transcript}', transcript);
-
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-    });
-
-    const response = message.content[0].text;
-    console.log('Claude analysis completed');
-
-    // Strip markdown code blocks if present
-    return stripMarkdownCodeBlocks(response);
-  } catch (error) {
-    // Check for API quota/billing issues
-    const quotaError = checkAPIQuotaError(error, 'anthropic');
-    if (quotaError) {
-      console.error('❌ Anthropic API Error:', quotaError);
-      throw new Error(quotaError);
+    // Check for specific API errors
+    const apiError = checkAPIError(error);
+    if (apiError) {
+      throw new Error(apiError);
     }
-    throw error;
-  }
-};
 
-/**
- * Analyze using GPT-4o (OpenAI)
- * @param {string} transcript - Meeting transcript
- * @returns {Promise<string>} JSON analysis
- */
-const analyzeWithGPT = async (transcript) => {
-  const client = getOpenAIClient();
-  if (!client) {
-    throw new Error('OpenAI API key not configured');
-  }
-
-  try {
-    const prompt = ANALYSIS_PROMPT.replace('{transcript}', transcript);
-
-    const completion = await client.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a meeting documentation assistant that captures detailed discussions for long-term reference. Return structured JSON responses with thorough detail.',
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      response_format: { type: 'json_object' },
-      max_tokens: 4096,
-    });
-
-    const response = completion.choices[0].message.content;
-    console.log('GPT-4o analysis completed');
-
-    return response;
-  } catch (error) {
-    // Check for API quota/billing issues
-    const quotaError = checkAPIQuotaError(error, 'openai');
-    if (quotaError) {
-      console.error('❌ OpenAI API Error:', quotaError);
-      throw new Error(quotaError);
-    }
     throw error;
   }
 };
@@ -333,7 +174,7 @@ export const saveSummary = async (analysis, meetingId) => {
     const summaryData = {
       ...analysis,
       generatedAt: new Date().toISOString(),
-      aiBackend: AI_BACKEND,
+      aiBackend: 'azure-openai',
     };
 
     await fs.writeFile(filePath, JSON.stringify(summaryData, null, 2));
@@ -370,7 +211,9 @@ export const readSummary = async (summaryPath) => {
  * @returns {Promise<Object>} Mentor feedback
  */
 export const generateMentorFeedback = async (transcript, summary) => {
-  const backend = getAIBackendForFeature('mentor_feedback');
+  if (!isAzureConfigured()) {
+    throw new Error('Azure OpenAI is not configured');
+  }
 
   const prompt = `You are an experienced technical mentor reviewing a meeting transcript.
 
@@ -390,37 +233,17 @@ Provide feedback in this structure:
 Provide ONLY the JSON response, no additional text.`;
 
   try {
-    let feedback;
+    const response = await createChatCompletion([
+      { role: 'system', content: 'You are a technical mentor providing feedback.' },
+      { role: 'user', content: prompt },
+    ], {
+      max_tokens: 1024,
+      temperature: 0.7,
+      response_format: { type: 'json_object' },
+    });
 
-    if (backend === 'anthropic') {
-      const client = getAnthropicClient();
-      if (!client) {
-        throw new Error('Anthropic API key not configured');
-      }
-      const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: prompt }],
-      });
-      feedback = stripMarkdownCodeBlocks(message.content[0].text);
-    } else {
-      const client = getOpenAIClient();
-      if (!client) {
-        throw new Error('OpenAI API key not configured');
-      }
-      const completion = await client.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: 'You are a technical mentor providing feedback.' },
-          { role: 'user', content: prompt },
-        ],
-        response_format: { type: 'json_object' },
-        max_tokens: 1024,
-      });
-      feedback = completion.choices[0].message.content;
-    }
-
-    return typeof feedback === 'string' ? JSON.parse(feedback) : feedback;
+    const content = response.choices[0]?.message?.content;
+    return typeof content === 'string' ? JSON.parse(stripMarkdownCodeBlocks(content)) : content;
   } catch (error) {
     console.error('Mentor feedback error:', error);
     throw new Error('Failed to generate mentor feedback');
@@ -436,10 +259,9 @@ Provide ONLY the JSON response, no additional text.`;
  * @returns {Promise<Object>} Wiki update suggestions
  */
 export const generateWikiUpdateSuggestions = async (currentWiki, transcript, summary, projectName) => {
-  const backend = getAIBackendForFeature('wiki_updates');
-
-  // Use full transcript for better context (modern LLMs handle 100k+ tokens)
-  const fullTranscript = transcript;
+  if (!isAzureConfigured()) {
+    throw new Error('Azure OpenAI is not configured');
+  }
 
   const prompt = `You are a technical documentation assistant. Analyze a meeting transcript and suggest detailed wiki updates that capture nuances, options discussed, and trade-offs.
 
@@ -453,7 +275,7 @@ ${JSON.stringify(summary, null, 2)}
 
 Full Meeting Transcript:
 ---
-${fullTranscript}
+${transcript}
 ---
 
 Your task:
@@ -518,37 +340,20 @@ IMPORTANT - CAPTURE NUANCE:
 Provide ONLY the JSON response, no additional text.`;
 
   try {
-    let suggestions;
+    const response = await createChatCompletion([
+      {
+        role: 'system',
+        content: 'You are a technical documentation assistant that analyzes meetings and suggests detailed wiki updates with nuances, trade-offs, and context.',
+      },
+      { role: 'user', content: prompt },
+    ], {
+      max_tokens: 8000,
+      temperature: 0.5,
+      response_format: { type: 'json_object' },
+    });
 
-    if (backend === 'anthropic') {
-      const client = getAnthropicClient();
-      if (!client) {
-        throw new Error('Anthropic API key not configured');
-      }
-      const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 8000, // Increased from 3000 to capture detailed nuances and multiple updates
-        messages: [{ role: 'user', content: prompt }],
-      });
-      suggestions = stripMarkdownCodeBlocks(message.content[0].text);
-    } else {
-      const client = getOpenAIClient();
-      if (!client) {
-        throw new Error('OpenAI API key not configured');
-      }
-      const completion = await client.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: 'You are a technical documentation assistant that analyzes meetings and suggests detailed wiki updates with nuances, trade-offs, and context.' },
-          { role: 'user', content: prompt },
-        ],
-        response_format: { type: 'json_object' },
-        max_tokens: 8000, // Increased from 3000 to capture detailed nuances and multiple updates
-      });
-      suggestions = completion.choices[0].message.content;
-    }
-
-    const parsed = typeof suggestions === 'string' ? JSON.parse(suggestions) : suggestions;
+    const content = response.choices[0]?.message?.content;
+    const parsed = typeof content === 'string' ? JSON.parse(stripMarkdownCodeBlocks(content)) : content;
 
     // Validate and normalize the response
     return {
@@ -578,7 +383,7 @@ Brief description of the project, its purpose, and main features.
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 List any required tools, dependencies, or knowledge needed.
@@ -591,7 +396,7 @@ How to get up and running quickly.
 
 ---
 
-## 📖 User Guide
+## User Guide
 
 ### Core Features
 Describe main features and how to use them.
@@ -604,7 +409,7 @@ How to configure the application.
 
 ---
 
-## 🔧 Technical Documentation
+## Technical Documentation
 
 ### Architecture
 High-level architecture overview and design decisions.
@@ -620,7 +425,7 @@ Important technical implementation notes.
 
 ---
 
-## 📝 Changelog
+## Changelog
 
 Updates and changes to the project will be tracked here.
 

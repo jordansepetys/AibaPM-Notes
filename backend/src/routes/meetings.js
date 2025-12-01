@@ -130,6 +130,57 @@ router.post('/', async (req, res, next) => {
 });
 
 /**
+ * POST /api/meetings/transcript
+ * Create a new meeting from uploaded transcript text (no audio recording)
+ */
+router.post('/transcript', async (req, res, next) => {
+  try {
+    const { projectId, title, date, transcript } = req.body;
+
+    // Validate required fields
+    if (!title || !date || !transcript) {
+      return res.status(400).json({ error: 'Title, date, and transcript are required' });
+    }
+
+    if (transcript.length < 50) {
+      return res.status(400).json({ error: 'Transcript too short. Please provide at least 50 characters.' });
+    }
+
+    // Create meeting record (no audio file)
+    const result = createMeeting.run(
+      projectId ? parseInt(projectId, 10) : null,
+      title,
+      date,
+      null, // duration (will estimate from text length)
+      null, // audio_path - no audio for transcript uploads
+      null, // transcript_path
+      null  // summary_path
+    );
+
+    const meetingId = result.lastInsertRowid;
+    console.log(`[Meeting ${meetingId}] Created from transcript upload (${transcript.length} chars)`);
+
+    const meeting = getMeetingById.get(meetingId);
+
+    // Return immediately, process in background
+    res.status(201).json({
+      id: meetingId,
+      message: 'Transcript received, processing...',
+      meeting,
+      status: 'processing'
+    });
+
+    // Process transcript in background
+    processTranscriptOnly(meetingId, transcript, title, date).catch(error => {
+      console.error(`[Meeting ${meetingId}] Processing failed:`, error);
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * POST /api/meetings/:id/reprocess
  * Re-transcribe and analyze a meeting
  */
@@ -413,6 +464,123 @@ async function processMeeting(meetingId, audioPath, title, date) {
         meetingId
       );
       console.error(`Marked meeting ${meetingId} with error status`);
+    } catch (updateError) {
+      console.error(`Failed to mark meeting ${meetingId} with error:`, updateError);
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * Background processing function for transcript-only uploads
+ * Skips transcription step since text is already provided
+ */
+async function processTranscriptOnly(meetingId, transcriptText, title, date) {
+  const fs = await import('fs/promises');
+  const path = await import('path');
+  const { fileURLToPath } = await import('url');
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+  try {
+    console.log(`\n=== Processing transcript for meeting ${meetingId} ===`);
+
+    // Emit processing started status
+    emitMeetingStatus(meetingId, MeetingStatus.PROCESSING_STARTED);
+
+    // Step 1: Save transcript to file
+    console.log('Step 1: Saving transcript...');
+    emitMeetingStatus(meetingId, MeetingStatus.SAVING, { message: 'Saving transcript...' });
+
+    const timestamp = Date.now();
+    const transcriptDir = path.join(__dirname, '../../storage/transcripts');
+    const txtPath = path.join(transcriptDir, `meeting-${meetingId}-${timestamp}.txt`);
+    const mdPath = path.join(transcriptDir, `meeting-${meetingId}-${timestamp}.md`);
+
+    await fs.mkdir(transcriptDir, { recursive: true });
+    await fs.writeFile(txtPath, transcriptText);
+    await fs.writeFile(mdPath, `# Meeting Transcript: ${title}\n\nDate: ${date}\n\n---\n\n${transcriptText}`);
+
+    // Estimate duration from text length (rough: 150 words/minute, 5 chars/word)
+    const estimatedMinutes = Math.ceil(transcriptText.length / (150 * 5));
+    const estimatedDuration = estimatedMinutes * 60;
+
+    // Step 2: Analyze transcript with AI
+    console.log('Step 2: Analyzing meeting...');
+    emitMeetingStatus(meetingId, MeetingStatus.ANALYZING, { message: 'Generating AI summary...' });
+    const analysis = await analyzeMeeting(transcriptText);
+
+    // Step 3: Save summary
+    console.log('Step 3: Saving summary...');
+    const summaryPath = await saveSummary(analysis, meetingId);
+
+    // Step 4 & 5: Update meeting record and metadata in a transaction
+    console.log('Step 4 & 5: Updating meeting record and metadata...');
+    runTransaction(() => {
+      const meeting = getMeetingById.get(meetingId);
+      updateMeeting.run(
+        meeting.title,
+        meeting.date,
+        estimatedDuration,
+        null, // No audio path for transcript uploads
+        txtPath.replace(/\\/g, '/'),
+        summaryPath,
+        meetingId
+      );
+
+      // Extract AI model metadata
+      const aiModelInfo = analysis._metadata ? JSON.stringify(analysis._metadata) : null;
+      const existingMetadata = getMeetingMetadata.get(meetingId);
+
+      if (existingMetadata) {
+        updateMeetingMetadata.run(
+          JSON.stringify(analysis.key_decisions || []),
+          JSON.stringify(analysis.action_items || []),
+          JSON.stringify([]), // risks - deprecated
+          JSON.stringify([]), // open_questions - deprecated
+          aiModelInfo,
+          meetingId
+        );
+      } else {
+        createMeetingMetadata.run(
+          meetingId,
+          JSON.stringify(analysis.key_decisions || []),
+          JSON.stringify(analysis.action_items || []),
+          JSON.stringify([]), // risks - deprecated
+          JSON.stringify([]), // open_questions - deprecated
+          aiModelInfo
+        );
+      }
+    });
+
+    // Step 6: Build search index
+    console.log('Step 6: Building search index...');
+    await buildSearchIndex(meetingId, transcriptText, analysis);
+
+    console.log(`=== Meeting ${meetingId} transcript processing complete ===\n`);
+
+    // Emit completion status
+    const completedMeeting = getMeetingById.get(meetingId);
+    emitMeetingStatus(meetingId, MeetingStatus.COMPLETED, { meeting: completedMeeting });
+
+  } catch (error) {
+    console.error(`Failed to process transcript for meeting ${meetingId}:`, error);
+
+    // Emit error status
+    emitMeetingStatus(meetingId, MeetingStatus.ERROR, { error: error.message });
+
+    // Mark the meeting with an error
+    try {
+      const meeting = getMeetingById.get(meetingId);
+      updateMeeting.run(
+        meeting.title,
+        meeting.date,
+        0,
+        null,
+        `ERROR: ${error.message}`,
+        null,
+        meetingId
+      );
     } catch (updateError) {
       console.error(`Failed to mark meeting ${meetingId} with error:`, updateError);
     }
