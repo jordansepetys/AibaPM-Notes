@@ -126,6 +126,22 @@ function initializeDatabase() {
     )
   `);
 
+  // Milestones table - for project roadmap/timeline
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS milestones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      milestone_date TEXT NOT NULL,
+      milestone_type TEXT NOT NULL DEFAULT 'deadline',
+      status TEXT NOT NULL DEFAULT 'upcoming',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+
   console.log('Database initialized successfully');
 }
 
@@ -310,6 +326,34 @@ export const upsertSetting = db.prepare(`
 
 export const deleteSetting = db.prepare(`
   DELETE FROM settings WHERE key = ?
+`);
+
+// Milestones
+export const createMilestone = db.prepare(`
+  INSERT INTO milestones (project_id, title, description, milestone_date, milestone_type, status)
+  VALUES (?, ?, ?, ?, ?, ?)
+`);
+
+export const getAllMilestones = db.prepare(`
+  SELECT * FROM milestones ORDER BY milestone_date ASC
+`);
+
+export const getMilestoneById = db.prepare(`
+  SELECT * FROM milestones WHERE id = ?
+`);
+
+export const getMilestonesByProject = db.prepare(`
+  SELECT * FROM milestones WHERE project_id = ? ORDER BY milestone_date ASC
+`);
+
+export const updateMilestone = db.prepare(`
+  UPDATE milestones
+  SET title = ?, description = ?, milestone_date = ?, milestone_type = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+  WHERE id = ?
+`);
+
+export const deleteMilestone = db.prepare(`
+  DELETE FROM milestones WHERE id = ?
 `);
 
 // Run migrations for existing databases

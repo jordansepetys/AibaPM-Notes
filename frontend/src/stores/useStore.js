@@ -9,6 +9,9 @@ const useStore = create((set, get) => ({
   meetings: [],
   selectedMeeting: null,
 
+  // Milestones
+  milestones: [],
+
   // Recording
   isRecording: false,
   recordingDuration: 0,
@@ -66,9 +69,26 @@ const useStore = create((set, get) => ({
   })),
 
   selectMeeting: (meeting) => {
-    console.log('🏪 Store: selectMeeting called with:', meeting?.id, meeting?.title);
+    console.log('Store: selectMeeting called with:', meeting?.id, meeting?.title);
     set({ selectedMeeting: meeting });
   },
+
+  // Actions - Milestones
+  setMilestones: (milestones) => set({ milestones }),
+
+  addMilestone: (milestone) => set((state) => ({
+    milestones: [...state.milestones, milestone]
+  })),
+
+  updateMilestone: (id, updates) => set((state) => ({
+    milestones: state.milestones.map(m =>
+      m.id === id ? { ...m, ...updates } : m
+    )
+  })),
+
+  deleteMilestone: (id) => set((state) => ({
+    milestones: state.milestones.filter(m => m.id !== id)
+  })),
 
   // Actions - Recording
   startRecording: (mediaRecorder) => set({

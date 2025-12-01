@@ -35,6 +35,7 @@ import { setupAudioCleanupCron, cleanupOldAudioFiles } from './services/audioPro
 import skillsRouter from './routes/skills.js';
 import settingsRouter from './routes/settings.js';
 import dataRouter from './routes/data.js';
+import milestonesRouter from './routes/milestones.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -163,6 +164,7 @@ app.use('/api/chat', chatRouter);
 app.use('/api/skills', skillsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/data', dataRouter);
+app.use('/api/milestones', milestonesRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

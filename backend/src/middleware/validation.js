@@ -76,6 +76,34 @@ export const searchQuerySchema = z.object({
   projectId: z.string().regex(/^\d+$/).transform(Number).optional(),
 });
 
+// Milestone schemas
+export const createMilestoneSchema = z.object({
+  projectId: z.union([
+    z.number().int().positive(),
+    z.string().regex(/^\d+$/).transform(Number),
+  ]),
+  title: z.string()
+    .min(1, 'Title is required')
+    .max(200, 'Title must be less than 200 characters')
+    .trim(),
+  description: z.string()
+    .max(2000, 'Description must be less than 2000 characters')
+    .optional()
+    .nullable(),
+  milestoneDate: z.string()
+    .min(1, 'Date is required'),
+  milestoneType: z.enum(['demo', 'deadline', 'launch', 'meeting', 'checkpoint'])
+    .default('deadline'),
+  status: z.enum(['upcoming', 'completed'])
+    .default('upcoming'),
+});
+
+export const updateMilestoneSchema = createMilestoneSchema.partial().omit({ projectId: true });
+
+export const milestoneQuerySchema = z.object({
+  projectId: z.string().regex(/^\d+$/).transform(Number).optional(),
+});
+
 // Validation middleware factory
 export function validate(schema, source = 'body') {
   return (req, res, next) => {

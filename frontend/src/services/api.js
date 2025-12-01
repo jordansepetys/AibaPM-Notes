@@ -356,6 +356,46 @@ export const settingsAPI = {
   },
 };
 
+// Milestones API
+export const milestonesAPI = {
+  getAll: async (projectId = null) => {
+    try {
+      const params = projectId ? { projectId } : {};
+      const response = await api.get('/api/milestones', { params });
+      return response.data.milestones || [];
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  create: async (data) => {
+    try {
+      const response = await api.post('/api/milestones', data);
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  update: async (id, data) => {
+    try {
+      const response = await api.put(`/api/milestones/${id}`, data);
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  delete: async (id) => {
+    try {
+      const response = await api.delete(`/api/milestones/${id}`);
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+};
+
 // Health check
 export const healthCheck = async () => {
   try {

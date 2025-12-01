@@ -9,6 +9,7 @@ import WikiEditor from './components/Wiki/WikiEditor';
 import GlobalSearch from './components/Search/GlobalSearch';
 import ProjectManager from './components/Projects/ProjectManager';
 import SkillsManager from './components/Skills/SkillsManager';
+import RoadmapTimeline from './components/Roadmap/RoadmapTimeline';
 import ChatSidebar from './components/Chat/ChatSidebar';
 import SettingsModal from './components/Settings/SettingsModal';
 import TabButton from './components/UI/TabButton';
@@ -18,6 +19,7 @@ import './App.css';
 const TABS = [
   { id: 'transcript', icon: '📝', label: 'Add Meeting' },
   { id: 'meetings', icon: '📋', label: 'Meetings', countKey: 'meetings' },
+  { id: 'roadmap', icon: '🗺️', label: 'Roadmap' },
   { id: 'wiki', icon: '📚', label: 'Wiki' },
   { id: 'skills', icon: '🎯', label: 'Skills' },
   { id: 'projects', icon: '📁', label: 'Projects', countKey: 'projects' },
@@ -201,6 +203,9 @@ function App() {
             <MeetingDetails />
           </div>
         )}
+
+        {/* Roadmap Tab */}
+        {appTab === 'roadmap' && <RoadmapTimeline />}
 
         {/* Wiki Tab */}
         {appTab === 'wiki' && <WikiEditor />}
